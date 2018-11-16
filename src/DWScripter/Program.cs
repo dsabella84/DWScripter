@@ -38,6 +38,8 @@ namespace DWScripter
             string featureToScript = "";
             string FiltersFilePath ="" ;
             string CommandTimeout ="";
+            bool ignoreFailure = false;
+            int returnCode = 0;
 
             Dictionary<String, String> parameters = new Dictionary<string, string>();
             parameters = GetParametersFromArguments(args);
@@ -93,6 +95,9 @@ namespace DWScripter
                         break;
                     case "-t":
                         CommandTimeout = parameters[pKey];
+                        break;
+                    case "-if":
+                        ignoreFailure = true;
                         break;
                     default:
                         break;
@@ -199,7 +204,11 @@ namespace DWScripter
             catch (Exception ex)
             {
                 Console.WriteLine(ex);
-                throw ex;
+
+                returnCode = 1;
+
+                if (!ignoreFailure)
+                    throw ex;
             }
 
             if (c.conn != null)
@@ -213,7 +222,7 @@ namespace DWScripter
             }
 
             Console.Write("Done !!! ");
-            Environment.Exit(0);
+            Environment.Exit(returnCode);
         }
 
        public static void DisplayHelp()
@@ -236,6 +245,7 @@ namespace DWScripter
             Console.WriteLine("     [-Fp: filters file path] no space allowed");
             Console.WriteLine("     [-X: Exclusion Filter");
             Console.WriteLine("     [-t: Command Timeout]");
+            Console.WriteLine("     [-if: Ignore Failure]");
             Console.WriteLine();
             Console.WriteLine(@"Sample : DWScripter -S:192.168.1.1,17001 -D:Fabrikam_Dev -E -O:C:\DW_SRC\FabrikamDW_STG -M:PersistStructure");
             Console.WriteLine(@"Sample : DWScripter -St:192.168.1.1,17001 -Dt:Fabrikam_INT -E -O:C:\DW_SRC\FabrikamDW_STG -M:CompareFromFile -F:ALL");
@@ -245,7 +255,7 @@ namespace DWScripter
         static Dictionary<string,string>  GetParametersFromArguments (string[] args)
         {
             Dictionary<string, string> parameters = new Dictionary<string, string>();
-            string ParametersList = "-S|-D|-E|-M|-O|-St|-Dt|-U|-P|-Ut|-Pt|-W|-F|-Fp|-X|-t";
+            string ParametersList = "-S|-D|-E|-M|-O|-St|-Dt|-U|-P|-Ut|-Pt|-W|-F|-Fp|-X|-t|-if";
             List<string> ParametersHelp = new List<string> { "-help", "-?", "/?" };
             List<string> ModeList = new List<string> { "FULL", "COMPARE", "COMPAREFROMFILE", "PERSISTSTRUCTURE" };
             Regex Plist = new Regex(ParametersList);
