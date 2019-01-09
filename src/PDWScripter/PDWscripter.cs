@@ -1535,8 +1535,14 @@ namespace DWScripter
                         sw.WriteLine("");
                     }
 
+                    string outString = Regex.Replace(
+                        dbObjectDefinition.Value.ToString(), 
+                        @"CREATE TABLE #\w+\s+WITH\s*\([^\)]*Distribution.*=.*replicate[^\)]*\)", 
+                        replicateToRoundRobin, 
+                        RegexOptions.IgnoreCase);
+
                     // Add object Create
-                    sw.WriteLine(dbObjectDefinition.Value.ToString());
+                    sw.WriteLine(outString);
                     sw.WriteLine("");
 
                     sw.WriteLine("GO");
@@ -1555,6 +1561,23 @@ namespace DWScripter
             rdr.Close();
             Console.WriteLine("done");
 
+        }
+
+        private static string replicateToRoundRobin(Match match)
+        {
+            string matchedValue = match.Value;
+
+            var replicate = new Regex("replicate", RegexOptions.IgnoreCase);
+            var location = new Regex(@",\s*location\s*=\s*user_db", RegexOptions.IgnoreCase);
+            var locationStart = new Regex(@"location\s*=\s*user_db\s*,\s*", RegexOptions.IgnoreCase);
+
+            //Console.WriteLine("\r\nBefore: " + matchedValue);
+            matchedValue = replicate.Replace(matchedValue, "ROUND_ROBIN");
+            matchedValue = location.Replace(matchedValue, "");
+            matchedValue = locationStart.Replace(matchedValue, "");
+            //Console.WriteLine("After: " + matchedValue);
+
+            return matchedValue;
         }
 
 
