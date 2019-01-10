@@ -211,14 +211,34 @@ namespace DWScripter
                     throw ex;
             }
 
-            if (c.conn != null)
+            if (c != null && c.conn != null)
             {
-                c.conn.Close();
+                try
+                {
+                    c.conn.Close();
+                }
+                catch (Exception ex)
+                {
+                    returnCode = 1;
+
+                    if (!ignoreFailure)
+                        throw ex;
+                }
             }
 
-            if (cTarget != null)
+            if (cTarget != null && cTarget.conn != null)
             {
-                cTarget.conn.Close();
+                try
+                { 
+                    cTarget.conn.Close();
+                }
+                catch (Exception ex)
+                {
+                    returnCode = 1;
+
+                    if (!ignoreFailure)
+                        throw ex;
+                }
             }
 
             Console.Write("Done !!! ");
