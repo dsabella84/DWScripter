@@ -10,6 +10,7 @@ using System.Data;
 using System.Data.SqlClient;
 using Newtonsoft.Json;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace DWScripter
 {
@@ -118,6 +119,7 @@ namespace DWScripter
                 conn.ConnectionString = "server=" + server + ";database=" + sourceDb + ";User ID=" + userName + ";Password=" + pwd;
             }
 
+            Logger.Log(conn.ConnectionString);
 
             cmd = new System.Data.SqlClient.SqlCommand();
             //sets non default timeout
@@ -126,7 +128,7 @@ namespace DWScripter
                 cmd.CommandTimeout = Convert.ToInt32(this.CommandTimeout);
                 
             }
-            Console.WriteLine("Current Command Timeout: " + cmd.CommandTimeout);
+            Logger.Log("Current Command Timeout: " + cmd.CommandTimeout);
 
             try {
                 conn.Open();
@@ -134,10 +136,140 @@ namespace DWScripter
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex);
+                Logger.Log(ex);
                 throw ex;
             }
             
+        }
+
+        // Constructor that accepts sqlConnection and sqlCmd so that we don't have to always establish a new connection
+        public PDWscripter(string system, string server, string sourceDb, string authentication, string userName, string pwd, string wrkMode, string ExcludeObjectSuffixList, string filterSpec, string scriptMode, string CommandTimeout, System.Data.SqlClient.SqlConnection sqlConnection, System.Data.SqlClient.SqlCommand sqlCmd)
+        {
+            DatabaseName = sourceDb;
+            cols = new List<ColumnDef>();
+            clusteredCols = new List<IndexColumnDef>();
+            partitionBoundaries = new List<PartitionBoundary>();
+            nonclusteredIndexes = new List<NonclusteredIndexDef>();
+            stats = new List<StatDef>();
+            dbTables = new List<TableDef>();
+            dbstruct = new DBStruct();
+            this.filterSpec = filterSpec;
+            this.ExcludeObjectSuffixList = ExcludeObjectSuffixList;
+            this.wrkMode = wrkMode;
+            this.sourceDb = sourceDb;
+            this.destDb = sourceDb;         // For future DB cloning 
+            this.scriptMode = scriptMode;
+            this.CommandTimeout = CommandTimeout;
+
+            
+            if(sqlConnection == null || sqlCmd == null)
+            {
+                SqlConnectionStringBuilder constrbuilder = new SqlConnectionStringBuilder();
+
+                conn = new System.Data.SqlClient.SqlConnection();
+                if (system == "PDW")
+                {
+                    constrbuilder.DataSource = server;
+                    constrbuilder.InitialCatalog = sourceDb;
+                    if (authentication == "SQL")
+                    {
+                        constrbuilder.UserID = userName;
+                        constrbuilder.Password = pwd;
+                        constrbuilder.IntegratedSecurity = false;
+
+                    }
+                    else
+                    {
+                        constrbuilder.IntegratedSecurity = true;
+                        //  constrbuilder.Encrypt = true;
+                        //  constrbuilder.TrustServerCertificate = true;
+                    }
+                    conn.ConnectionString = constrbuilder.ConnectionString;
+
+                }
+                else
+                {
+                    conn.ConnectionString = "server=" + server + ";database=" + sourceDb + ";User ID=" + userName + ";Password=" + pwd;
+                }
+
+
+                cmd = new System.Data.SqlClient.SqlCommand();
+                //sets non default timeout
+                if (!String.IsNullOrEmpty(this.CommandTimeout))
+                {
+                    cmd.CommandTimeout = Convert.ToInt32(this.CommandTimeout);
+
+                }
+                Logger.Log("Current Command Timeout: " + cmd.CommandTimeout);
+
+                try
+                {
+                    conn.Open();
+                    cmd.Connection = conn;
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log(ex);
+                throw ex;
+                }
+            }
+            else
+            {
+                conn = sqlConnection;
+                cmd = sqlCmd;
+            }
+            
+        }
+
+        // Connect to a server and database and return the connection
+        public static void Connect(string system, string server, string sourceDb, string authentication, string userName, string pwd, string CommandTimeout, out System.Data.SqlClient.SqlConnection conn, out System.Data.SqlClient.SqlCommand cmd)
+        {
+            SqlConnectionStringBuilder constrbuilder = new SqlConnectionStringBuilder();
+            conn = new System.Data.SqlClient.SqlConnection();
+            if (system == "PDW")
+            {
+                constrbuilder.DataSource = server;
+                constrbuilder.InitialCatalog = sourceDb;
+                if (authentication == "SQL")
+                {
+                    constrbuilder.UserID = userName;
+                    constrbuilder.Password = pwd;
+                    constrbuilder.IntegratedSecurity = false;
+                }
+                else
+                {
+                    constrbuilder.IntegratedSecurity = true;
+                    //  constrbuilder.Encrypt = true;
+                    //  constrbuilder.TrustServerCertificate = true;
+                }
+                conn.ConnectionString = constrbuilder.ConnectionString;
+
+            }
+            else
+            {
+                conn.ConnectionString = "server=" + server + ";database=" + sourceDb + ";User ID=" + userName + ";Password=" + pwd;
+            }
+
+            cmd = new System.Data.SqlClient.SqlCommand();
+            
+            //sets non default timeout
+            if (!String.IsNullOrEmpty(CommandTimeout))
+            {
+                cmd.CommandTimeout = Convert.ToInt32(CommandTimeout);
+            }
+
+            Logger.Log("DW Connect | " + "Server=" + server + " | DB=" + sourceDb + " | Command Timeout=" + cmd.CommandTimeout);
+
+            try
+            {
+                conn.Open();
+                cmd.Connection = conn;
+            }
+            catch (Exception ex)
+            {
+                Logger.Log(ex);
+                throw ex;
+            }
         }
 
         private void getSchemas(StreamWriter sw, Boolean GetStructure)
@@ -389,29 +521,29 @@ namespace DWScripter
         {
             if (wrkMode == "ALL" || wrkMode == "DDL")
             {
-                Console.Write("Getting " + this.sourceDb + " database DDL structure");
+                //Console.Write("Getting " + this.sourceDb + " database DDL structure");
                 string outDBJsonDDLStructureFile = outFile + "_STRUCT_DDL.json";
                 StreamWriter sw = null;
                 FileStream fs = null;
 
                 getDbTables(true);
-                Console.Write(".");
+                //Console.Write(".");
                 getSchemas(sw, true);
-                Console.Write(".");
+                //Console.Write(".");
                 getSourceColumnsGlobal();
-                Console.Write(".");
+                //Console.Write(".");
                 getClusteredIndexGlobal();
                 getNonclusteredIndexesGlobal();
-                Console.Write(".");
+                //Console.Write(".");
                 getStatsGlobal();
-                Console.Write(".");
+                //Console.Write(".");
                 getPartitioningGlobal();
 
-                Console.Write("\r\nDone\r\n");
+                //Console.Write("\r\nDone\r\n");
                 if (generateFile)
                 {
 
-                    Console.Write("PersistStructure DDL to JSON file :" + outDBJsonDDLStructureFile + ">");
+                    //Console.Write("PersistStructure DDL to JSON file :" + outDBJsonDDLStructureFile + ">");
                     if (outDBJsonDDLStructureFile != "")
                     {
                         fs = new FileStream(outDBJsonDDLStructureFile, FileMode.Create);
@@ -425,7 +557,7 @@ namespace DWScripter
             if (wrkMode == "ALL" || wrkMode == "DML")
             {
 
-                Console.Write("Getting " + this.sourceDb + " database DML structure");
+                //Console.Write("Getting " + this.sourceDb + " database DML structure");
                 cmd.CommandText = @" SELECT c.definition, b.name + '.' + a.name AS ObjectName
                     FROM
                     sys.sql_modules c
@@ -462,17 +594,17 @@ namespace DWScripter
                                 DbObjectDefinitions.Insert(idxCallingObj, kvpObjNameDef);
                             }
                         }
-                        Console.Write(".");
+                        //Console.Write(".");
                     }
                 }
                 rdr.Close();
-                Console.Write("\r\nDone\r\n");
+                //Console.Write("\r\nDone\r\n");
                 if (generateFile)
                 {
                     string outDBJsonDMLStructureFile = outFile + "_STRUCT_DML.json";
                     StreamWriter sw = null;
                     FileStream fs = null;
-                    Console.Write("PersistStructure DML to JSON file :" + outDBJsonDMLStructureFile + ">");
+                    //Console.Write("PersistStructure DML to JSON file :" + outDBJsonDMLStructureFile + ">");
                     if (outDBJsonDMLStructureFile != "")
                     {
                         fs = new FileStream(outDBJsonDMLStructureFile, FileMode.Create);
@@ -487,13 +619,15 @@ namespace DWScripter
         {
             dbTables.Clear();
             Regex r = new Regex(this.ExcludeObjectSuffixList, RegexOptions.IgnoreCase);
+
+            string fixedFilter = filterSpec.Replace("'", "''");
             string TableName;
             cmd.CommandText =
                 "select schema_name(so.schema_id) + '.' + so.name as name, tdp.distribution_policy, schema_name(so.schema_id) as [schema] " +
                 "from sys.tables so left join sys.external_tables et on so.object_id = et.object_id " +
                 "JOIN sys.pdw_table_distribution_properties AS tdp ON so.object_id = tdp.object_id " +
                 "where et.name is NULL and so.type = 'U' " +
-                 "and schema_name(so.schema_id) + '.' + so.name like '" + filterSpec + "' " +
+                 "and schema_name(so.schema_id) + '.' + so.name like '" + fixedFilter + "' " +
                 "order by so.name ";
 
             rdr = cmd.ExecuteReader();
@@ -595,6 +729,7 @@ namespace DWScripter
 
             if (!SourceFromFile)
             {
+                string fixedTable = sourceTable.Replace("'", "''");
                 cmd.CommandText =
                     "select c.column_id, c.name, t.name as type, c.max_length, c.precision," +
                     "c.scale, c.is_nullable, d.distribution_ordinal, c.collation_name, ISNULL('DEFAULT '+dc.definition,'') as DefaultConstraint " +
@@ -603,7 +738,7 @@ namespace DWScripter
                     "on c.object_id = d.object_id and c.column_id = d.column_id " +
                     "join sys.types t on t.user_type_id = c.user_type_id " +
                     "left join sys.default_constraints dc on c.default_object_id =dc.object_id and c.object_id =dc.parent_object_id " +
-                    "where c.object_id = (select object_id from sys.tables where schema_name(schema_id) + '.' + name = '" + sourceTable + "') " +
+                    "where c.object_id = (select object_id from sys.tables where schema_name(schema_id) + '.' + name = '" + fixedTable + "') " +
                     "order by Column_Id ";
 
                 rdr = cmd.ExecuteReader();
@@ -885,14 +1020,14 @@ namespace DWScripter
 
             if (!SourceFromFile)
             {
-
+                string fixedTable = sourceTable.Replace("'", "''");
                 cmd.CommandText =
                 "select i.key_ordinal, c.name, i.is_descending_key, si.[type] as index_type ,si.name as indexname " +
                 "from sys.indexes si " +
                 "left join sys.index_columns i on i.object_id = si.object_id " +
                 "left join sys.columns c on c.column_id = i.column_id and c.object_id = i.object_id " +
                 "where i.index_id = 1 and si.[type] <> 2 and " +
-                "i.object_id = (select object_id from sys.tables where schema_name(schema_id) + '.' + name = '" + sourceTable + "') " +
+                "i.object_id = (select object_id from sys.tables where schema_name(schema_id) + '.' + name = '" + fixedTable + "') " +
                 "and i.partition_ordinal = 0" + 
                 "order by key_ordinal ";
 
@@ -1027,13 +1162,14 @@ namespace DWScripter
             StringBuilder nonclusteredspec = new StringBuilder();
             if (!SourceFromFile)
             {
+                string fixedTable = sourceTable.Replace("'", "''");
                 cmd.CommandText =
                     "select ix.name as index_name, i.key_ordinal, c.name, i.is_descending_key " +
                     "from sys.index_columns i " +
                     "join sys.indexes ix on ix.index_id = i.index_id and ix.object_id = i.object_id " +
                     "join sys.columns c on c.column_id = i.column_id  and c.object_id = ix.object_id " +
                     "where i.key_ordinal > 0 and " +
-                    "i.object_id = (select object_id from sys.tables where schema_name(schema_id) + '.' + name = '" + sourceTable + "') and " +
+                    "i.object_id = (select object_id from sys.tables where schema_name(schema_id) + '.' + name = '" + fixedTable + "') and " +
                     "i.index_id > 1 " +   // NonClustered Indexes
                     "order by ix.name, key_ordinal ";
 
@@ -1181,12 +1317,13 @@ namespace DWScripter
 
             if (!SourceFromFile)
             {
+                string fixedTable = sourceTable.Replace("'", "''");
                 cmd.CommandText =
                 "select s.name as stat_name, sc.stats_column_id, c.name, has_filter, filter_definition " +
                 "from sys.stats s " +
                 "join sys.stats_columns sc on s.stats_id = sc.stats_id and s.object_id = sc.object_id " +
                 "join sys.columns c on c.column_id = sc.column_id  and c.object_id = sc.object_id " +
-                "where s.object_id = (select object_id from sys.tables where schema_name(schema_id) + '.' + name = '" + sourceTable + "') " +
+                "where s.object_id = (select object_id from sys.tables where schema_name(schema_id) + '.' + name = '" + fixedTable + "') " +
                 "and user_created=1 " +
                 "order by s.name, sc.stats_column_id ";
 
@@ -1349,6 +1486,7 @@ namespace DWScripter
             partitionBoundaries.Clear();
             if (!SourceFromFile)
             {
+                string fixedTable = sourceTable.Replace("'", "''");
                 cmd.CommandText =
                     "select c.name " +
                     "from  sys.tables t " +
@@ -1357,7 +1495,7 @@ namespace DWScripter
                     "and ic.index_id = i.index_id and ic.object_id = t.object_id) " +
                     "join  sys.columns c on(c.object_id = ic.object_id " +
                     "and c.column_id = ic.column_id) " +
-                    "where t.object_id  = (select object_id from sys.tables where schema_name(schema_id) + '.' + name = '" + sourceTable + "')  ";
+                    "where t.object_id  = (select object_id from sys.tables where schema_name(schema_id) + '.' + name = '" + fixedTable + "')  ";
                 partitionColumn = (string)cmd.ExecuteScalar();
 
                 if (partitionColumn != null)
@@ -1368,7 +1506,7 @@ namespace DWScripter
                         "JOIN sys.partition_schemes ps on pf.function_id=ps.function_id " +
                         "JOIN sys.data_spaces ds on ps.data_space_id = ds.data_space_id " +
                         "JOIN sys.indexes si on si.data_space_id = ds.data_space_id " +
-                        "WHERE si.object_id = (select object_id from sys.tables where schema_name(schema_id) + '.' + name = '" + sourceTable + "') ";
+                        "WHERE si.object_id = (select object_id from sys.tables where schema_name(schema_id) + '.' + name = '" + fixedTable + "') ";
                     partitionLeftOrRight = ((bool)cmd.ExecuteScalar() ? "RIGHT" : "LEFT");
 
                     cmd.CommandText =
@@ -1381,7 +1519,7 @@ namespace DWScripter
                         "join sys.partition_parameters pp on pp.function_id = ps.function_id " +
                         "join sys.types sty on sty.user_type_id = pp.user_type_id " +
                         "and prv.boundary_id = sp.partition_number " +
-                        "where st.object_id = (select object_id from sys.tables where schema_name(schema_id) + '.' + name = '" + sourceTable + "')  " +
+                        "where st.object_id = (select object_id from sys.tables where schema_name(schema_id) + '.' + name = '" + fixedTable + "')  " +
                         "order by sp.partition_number ";
 
                     rdr = cmd.ExecuteReader();
@@ -1447,15 +1585,13 @@ namespace DWScripter
                 sw = new StreamWriter(fs);
             }
 
-            Console.Write("DML>");
-
 
             // get generated statistics
             String description = "-- script generated the : " + String.Format("{0:d/M/yyyy HH:mm:ss}", DateTime.Now);
             cmd.CommandText = "select count(1) from sys.sql_modules";
             int objectcount = (int)cmd.ExecuteScalar();
             description += "\r\n-- objects scripted - objects = " + objectcount.ToString();
-            Console.Write("objects scripted - objects = " + objectcount.ToString());
+            Logger.Log("DML>objects scripted - objects = " + objectcount.ToString());
             sw.WriteLine(description);
 
 
@@ -1549,7 +1685,7 @@ namespace DWScripter
 
                     sw.WriteLine("");
                     sw.WriteLine("");
-                    Console.Write(".");
+                    ////Console.Write(".");
                 }
                 index++;
             }
@@ -1559,7 +1695,7 @@ namespace DWScripter
                 sw.Close();
             }
             rdr.Close();
-            Console.WriteLine("done");
+            Logger.Log("Complete");
 
         }
 
@@ -1571,11 +1707,11 @@ namespace DWScripter
             var location = new Regex(@",\s*location\s*=\s*user_db", RegexOptions.IgnoreCase);
             var locationStart = new Regex(@"location\s*=\s*user_db\s*,\s*", RegexOptions.IgnoreCase);
 
-            //Console.WriteLine("\r\nBefore: " + matchedValue);
+            //Logger.Log("\r\nBefore: " + matchedValue);
             matchedValue = replicate.Replace(matchedValue, "ROUND_ROBIN");
             matchedValue = location.Replace(matchedValue, "");
             matchedValue = locationStart.Replace(matchedValue, "");
-            //Console.WriteLine("After: " + matchedValue);
+            //Logger.Log("After: " + matchedValue);
 
             return matchedValue;
         }
@@ -1701,7 +1837,7 @@ namespace DWScripter
                 sw.WriteLine(dropDeployTmpTableTxt);
             }
 
-            Console.Write(".");
+            //Console.Write(".");
         }
 
         
@@ -1748,7 +1884,7 @@ namespace DWScripter
 
             sw.WriteLine(createTableTxt);
 
-            Console.Write(".");
+            //Console.Write(".");
         }
 
         public string  buildAlterTableScript(PDWscripter cSource, PDWscripter cTarget, TableDef t, Boolean SourceFromFile)
@@ -2270,8 +2406,8 @@ namespace DWScripter
             if (alterScript.Length > 0)
                 sw.WriteLine(alterScript);
 
+            ////Console.Write(".");
             //Console.Write(".");
-            Console.Write(".");
         }
         
         private string buildCreateStatisticsText(StatDef stat, string TargetTbl)
@@ -2457,14 +2593,14 @@ namespace DWScripter
             // writeWarningtxt(dropTableTxt);
 
 
-            Console.Write(".");
+            //Console.Write(".");
         }
 
       private void compareDML(PDWscripter cSource, PDWscripter cTarget, string outFile, Boolean SourceFromFile, FilterSettings FilterSet)
         {
             StreamWriter outfile = null;
             FileStream fs = null;
-            Console.Write("CompareDML>");
+            //Console.Write("CompareDML>");
 
             cTarget.cmd.CommandText = @" SELECT c.definition, b.name + '.' + a.name AS ObjectName
                     FROM
@@ -2589,7 +2725,7 @@ namespace DWScripter
 
 
             description = "\r\n-- objects scripted - ALTERorCREATE = " + lstCreateOrAlterDbObjectDefinitions.Count().ToString() + " - DROP = " + toDelete.ToString();
-            Console.Write("\r\n objects scripted - ALTERorCREATE = " + lstCreateOrAlterDbObjectDefinitions.Count().ToString() + " - DROP = " + toDelete.ToString());
+            //Console.Write("\r\n objects scripted - ALTERorCREATE = " + lstCreateOrAlterDbObjectDefinitions.Count().ToString() + " - DROP = " + toDelete.ToString());
             outfile.WriteLine(description);
             //==> EnumReferencedObjects ToolBar create OrderedParallelQuery ALTER
             int nbObjectDefinitions = lstCreateOrAlterDbObjectDefinitions.Count();
@@ -2670,7 +2806,7 @@ namespace DWScripter
                 outfile.WriteLine(dbObjectDefinition.Value.ToString());
                 outfile.WriteLine("GO");
 
-                Console.Write(".");
+                //Console.Write(".");
             }
 
             if (nbObjectDefinitions > 0)
@@ -2718,7 +2854,7 @@ namespace DWScripter
                 outfile.Close();
             }
             rdr.Close();
-            Console.WriteLine("done");
+            Logger.Log("Complete");
 
         }
 
@@ -2747,8 +2883,7 @@ namespace DWScripter
 
             String createUseDbTxt = "USE " + c.sourceDb + "\r\nGO\r\n";
             sw.WriteLine(createUseDbTxt);
-            Console.Write("DDL>");
-            Console.Write("Objects to script - tables = " + c.dbTables.Count.ToString() + " - schemas = " + schemacount.ToString());
+            Logger.Log("DDL>Objects to script - tables = " + c.dbTables.Count.ToString() + " - schemas = " + schemacount.ToString());
 
 
             getSchemas(sw, false);
@@ -2786,7 +2921,7 @@ namespace DWScripter
                 sw.Close();
             }
 
-            Console.WriteLine("done");
+            Logger.Log("Complete");
         }
 
         public void compareDDL(PDWscripter cSource, PDWscripter cTarget, string outFile, Boolean SourceFromFile, FilterSettings Filters)
@@ -2803,7 +2938,7 @@ namespace DWScripter
             String description = "-- script generated the : " + String.Format("{0:d/M/yyyy HH:mm:ss}", DateTime.Now) + "\r\n";
             sw.WriteLine(description);
 
-            Console.Write("CompareDDL>");
+            Logger.Log("CompareDDL>");
 
             String createUseDbTxt = "USE " + cTarget.sourceDb + "\r\nGO\r\n";
             sw.WriteLine(createUseDbTxt);
@@ -2818,7 +2953,7 @@ namespace DWScripter
                 sw.Close();
             }
 
-            Console.WriteLine("done");
+            Logger.Log("Complete");
         }
 
         private void getDB(PDWscripter c, string outFile)
@@ -2826,7 +2961,7 @@ namespace DWScripter
             StreamWriter sw = null;
             FileStream fs = null;
 
-            Console.Write("DB>");
+            Logger.Log("DB>");
             if (outFile != "")
             {
                 fs = new FileStream(outFile, FileMode.Create);
@@ -2859,7 +2994,7 @@ namespace DWScripter
             {
                 sw.Close();
             }
-            Console.WriteLine("done");
+            Logger.Log("Complete");
         }
 
         public void CompIterateScriptAllTables(PDWscripter cSource, PDWscripter cTarget, string outFile, Boolean SourceFromFile, FilterSettings Filters)
@@ -2878,7 +3013,7 @@ namespace DWScripter
             swWarn = new StreamWriter(fs);
             swWarn.Close();
 
-            Console.WriteLine("==== Start Comparison ====");
+            Logger.Log("==== Start Comparison ====");
 
             if ("ALL" == wrkMode || "DDL" == wrkMode)
             {
@@ -2888,7 +3023,7 @@ namespace DWScripter
             {
                 cSource.compareDML(cSource, cTarget, outCompDMLFile, SourceFromFile,Filters);
             }
-            Console.WriteLine("==== End Comparison ====");
+            Logger.Log("==== End Comparison ====");
 
         }
 
