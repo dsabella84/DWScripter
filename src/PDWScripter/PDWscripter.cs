@@ -1672,9 +1672,21 @@ namespace DWScripter
                     }
 
                     string outString = Regex.Replace(
-                        dbObjectDefinition.Value.ToString(), 
-                        @"CREATE TABLE #\w+\s+WITH\s*\([^\)]*Distribution.*=.*replicate[^\)]*\)", 
+                        dbObjectDefinition.Value.ToString(),
+                        @"CREATE[^\(]+TABLE[^\(]+#\w+[^\(]+WITH[^\(]*\([^\)]*Distribution.*=.*replicate[^\)]*\)", 
                         replicateToRoundRobin, 
+                        RegexOptions.IgnoreCase);
+
+                    outString = Regex.Replace(
+                        outString,
+                        @"CREATE[^\(]+TABLE[^\(]+#\w+[^\(]+WITH[^\(]*\(([^\)]*Distribution[^\)]*\))?[^\)]*Location\s*=\s*([^\)]*Distribution[^\)]*\))?[^\)]*\)",
+                        removeLocation,
+                        RegexOptions.IgnoreCase);
+
+                    outString = Regex.Replace(
+                        outString,
+                        @"\s+WITH\s*\([^\)]*distributed_agg[^\)]*\)",
+                        "",
                         RegexOptions.IgnoreCase);
 
                     // Add object Create
@@ -1704,14 +1716,21 @@ namespace DWScripter
             string matchedValue = match.Value;
 
             var replicate = new Regex("replicate", RegexOptions.IgnoreCase);
+
+            matchedValue = replicate.Replace(matchedValue, "ROUND_ROBIN");
+
+            return matchedValue;
+        }
+
+        private static string removeLocation(Match match)
+        {
+            string matchedValue = match.Value;
+
             var location = new Regex(@",\s*location\s*=\s*user_db", RegexOptions.IgnoreCase);
             var locationStart = new Regex(@"location\s*=\s*user_db\s*,\s*", RegexOptions.IgnoreCase);
 
-            //Logger.Log("\r\nBefore: " + matchedValue);
-            matchedValue = replicate.Replace(matchedValue, "ROUND_ROBIN");
             matchedValue = location.Replace(matchedValue, "");
             matchedValue = locationStart.Replace(matchedValue, "");
-            //Logger.Log("After: " + matchedValue);
 
             return matchedValue;
         }
