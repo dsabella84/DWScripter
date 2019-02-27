@@ -305,14 +305,15 @@ namespace DWScripter
                     // Skip empty lines
                     if (String.IsNullOrEmpty(line))
                     {
+                        inputQueue.TryDequeue(out line);
                         continue;
                     }
-                        
 
                     var entries = line.Substring(0, line.Length - 1).Substring(1).Replace("\",\"", ",").Split(',');
 
-                    if (entries[0] == "0")
+                    if (entries[0] != "1")
                     {
+                        inputQueue.TryDequeue(out line);
                         continue;
                     }
 
